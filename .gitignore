@@ -1,0 +1,8 @@
+/Student folder/
+/Requirement Docs/
+/.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
