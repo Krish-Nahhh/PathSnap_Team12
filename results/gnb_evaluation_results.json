@@ -1,0 +1,70 @@
+{
+  "evaluation_methodology": "5-fold GroupKFold cross-validation grouped strictly by trip_id on 80 training trips (zero trip-level leakage)",
+  "single_trip_investigation": "The initial 87.45% baseline on trip 00000001 was resubstitution training accuracy (fitted and tested on the same trip). True out-of-fold generalization accuracy across unseen trips is measured here.",
+  "mean_cv_metrics": {
+    "mean_top1_accuracy": 0.6515,
+    "mean_candidate_miss_rate": 0.1167,
+    "mean_candidate_recall": 0.8833,
+    "mean_precision": 0.5366,
+    "mean_recall": 0.7024,
+    "mean_f1": 0.6076,
+    "mean_log_loss": 0.2647
+  },
+  "fold_results": [
+    {
+      "fold": 1,
+      "candidate_accuracy": 0.8848,
+      "precision": 0.5511,
+      "recall": 0.687,
+      "f1": 0.6116,
+      "log_loss": 0.3147,
+      "top1_accuracy": 0.6977,
+      "candidate_recall": 0.9623,
+      "candidate_miss_rate": 0.0377
+    },
+    {
+      "fold": 2,
+      "candidate_accuracy": 0.8832,
+      "precision": 0.5667,
+      "recall": 0.6778,
+      "f1": 0.6172,
+      "log_loss": 0.2639,
+      "top1_accuracy": 0.712,
+      "candidate_recall": 0.9767,
+      "candidate_miss_rate": 0.0233
+    },
+    {
+      "fold": 3,
+      "candidate_accuracy": 0.8955,
+      "precision": 0.5448,
+      "recall": 0.6968,
+      "f1": 0.6115,
+      "log_loss": 0.2525,
+      "top1_accuracy": 0.4802,
+      "candidate_recall": 0.6573,
+      "candidate_miss_rate": 0.3427
+    },
+    {
+      "fold": 4,
+      "candidate_accuracy": 0.8993,
+      "precision": 0.5363,
+      "recall": 0.7599,
+      "f1": 0.6288,
+      "log_loss": 0.2294,
+      "top1_accuracy": 0.697,
+      "candidate_recall": 0.8736,
+      "candidate_miss_rate": 0.1264
+    },
+    {
+      "fold": 5,
+      "candidate_accuracy": 0.8756,
+      "precision": 0.4839,
+      "recall": 0.6907,
+      "f1": 0.5691,
+      "log_loss": 0.2629,
+      "top1_accuracy": 0.6706,
+      "candidate_recall": 0.9467,
+      "candidate_miss_rate": 0.0533
+    }
+  ]
+}
