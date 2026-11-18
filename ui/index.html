@@ -1,0 +1,136 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>PathSnap Route Evaluator</title>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>PathSnap</h1>
+        <p>GPS Route Matching and Evaluation Dashboard</p>
+    </header>
+
+    <main>
+
+        <!-- Trip Selection -->
+        <section class="controls">
+
+            <h2>Evaluate a Trip</h2>
+
+            <label for="tripId">Select Trip ID</label>
+
+            <input
+                type="number"
+                id="tripId"
+                min="0"
+                placeholder="Enter trip ID"
+            >
+
+            <label for="predictionMethod">
+                Prediction Method
+            </label>
+
+            <select id="predictionMethod">
+                <option value="false">Greedy</option>
+                <option value="true">Viterbi</option>
+            </select>
+
+            <button id="evaluateBtn">
+                Evaluate Trip
+            </button>
+
+            <p id="status">
+                Waiting for trip selection...
+            </p>
+
+        </section>
+
+
+        <!-- Evaluation Metrics -->
+        <section class="metrics">
+
+            <h2>Model Evaluation</h2>
+
+            <div class="metric-grid">
+
+                <div class="metric-card">
+                    <h3>Accuracy</h3>
+                    <p id="accuracy">--</p>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Precision</h3>
+                    <p id="precision">--</p>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Recall</h3>
+                    <p id="recall">--</p>
+                </div>
+
+                <div class="metric-card">
+                    <h3>F1 Score</h3>
+                    <p id="f1">--</p>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- Prediction Information -->
+        <section class="metrics">
+
+            <h2>Prediction Details</h2>
+
+            <div class="metric-grid">
+
+                <div class="metric-card">
+                    <h3>Observations</h3>
+                    <p id="observationCount">--</p>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Candidate Misses</h3>
+                    <p id="candidateMisses">--</p>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Anomalous Observations</h3>
+                    <p id="anomalies">--</p>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Processing Time</h3>
+                    <p id="processingTime">--</p>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- Route Visualization -->
+        <section class="map-section">
+
+            <h2>Route Visualization</h2>
+
+            <div id="map">
+                Map will appear here after backend integration.
+            </div>
+
+        </section>
+
+    </main>
+
+    <script src="app.js"></script>
+
+</body>
+</html>
