@@ -5,6 +5,8 @@ import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import joblib
+from sklearn.metrics import precision_recall_fscore_support
 
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,12 +15,17 @@ from pydantic import BaseModel, Field
 from src.pathsnap.inference import PathSnapPredictor, predict_trip as predict_trip_fn
 from src.pathsnap.label_alignment import align_trip_labels, load_trip_data
 from src.pathsnap.candidates import generate_candidates
-from src.pathsnap.gaussian_naive_bayes import score_candidates, load_model
+from src.pathsnap.random_forest import score_candidates
 
 # Environment and dataset directory paths
-BASE_DATA_DIR = Path(os.getenv("PATHSNAP_DATA_DIR", r"D:\\ML_Hackathon\\Student folder"))
-STUDENT_TEST_DIR = BASE_DATA_DIR / "student_test"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BASE_DATA_DIR = Path(os.getenv("PATHSNAP_DATA_DIR", str(PROJECT_ROOT / "data")))
+STUDENT_TEST_DIR = Path(os.getenv("PATHSNAP_TEST_DIR", str(
+    BASE_DATA_DIR / ("test_data" if (BASE_DATA_DIR / "test_data").is_dir() else "student_test")
+)))
 TRAIN_DIR = BASE_DATA_DIR / "train"
+MODEL_PATH = PROJECT_ROOT / "artifacts" / "random_forest.joblib"
+MODEL_NAME = "Random Forest"
 
 # Tokens for protected endpoints – must be set in the environment.
 EVALUATOR_TOKEN = os.getenv("EVALUATOR_TOKEN")
@@ -42,7 +49,7 @@ app.add_middleware(
 )
 
 # Initialize predictor singleton
-predictor = PathSnapPredictor()
+predictor = PathSnapPredictor(model=joblib.load(MODEL_PATH), scorer=score_candidates, batch_scoring=True)
 
 class HealthResponse(BaseModel):
     status: str = "ok"
@@ -55,15 +62,54 @@ class TripInfo(BaseModel):
     has_reference_route: bool
 
 class PredictionResponse(BaseModel):
+    model_name: str = MODEL_NAME
     trip_id: str
     observation_count: int
     predicted_route: List[Optional[int]]
+    track: List[Dict[str, float]]
+    geometry: Dict[int, Dict[str, Dict[str, float]]]
     prediction_method: str = Field(..., description="Either 'greedy' or 'viterbi'.")
+    accuracy: Optional[float] = None
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    f1: Optional[float] = None
+    evaluated_observation_count: int = 0
 
     candidate_miss_count: int
     anomalous_observations_count: int
     processing_time_ms: float
     message: str
+
+
+def route_geometry(predictions, nodes, arcs):
+    geometry = {}
+    for arc_id in set(predictions) - {None}:
+        source, target = arcs[arc_id]
+        geometry[arc_id] = {
+            "start": {"lon": nodes[source][0], "lat": nodes[source][1]},
+            "end": {"lon": nodes[target][0], "lat": nodes[target][1]},
+        }
+    return geometry
+
+
+def score_aligned_predictions(predictions, aligned_labels):
+    if not aligned_labels:
+        return {}
+
+    reference = list(aligned_labels.values())
+    predicted = [predictions[index] for index in aligned_labels]
+    predicted = [-1 if arc is None else arc for arc in predicted]
+    classes = sorted((set(reference) | set(predicted)) - {-1})
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        reference, predicted, labels=classes, average="macro", zero_division=0
+    )
+    return {
+        "accuracy": sum(actual == expected for actual, expected in zip(predicted, reference)) / len(reference),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "evaluated_observation_count": len(reference),
+    }
 
 def find_trip_dir(trip_id: str) -> Path:
     """Locate trip folder in student_test first, then train as fallback.
@@ -152,6 +198,9 @@ def predict(
         result = predictor.predict_trip(
             trip_dir, radius_m=radius_m, top_k=top_k, use_viterbi=use_viterbi
         )
+        track, nodes, arcs, reference_route = load_trip_data(trip_dir)
+        labels = align_trip_labels(track, nodes, arcs, reference_route) if reference_route else {}
+        metrics = score_aligned_predictions(result["predicted_arcs"], labels)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -166,11 +215,14 @@ def predict(
         trip_id=trip_id,
         observation_count=n_obs,
         predicted_route=predicted,
+        track=[{"lon": lon, "lat": lat} for lon, lat, _ in track],
+        geometry=route_geometry(predicted, nodes, arcs),
         prediction_method="viterbi" if use_viterbi else "greedy",
         candidate_miss_count=result["empty_candidate_count"],
         anomalous_observations_count=result["quality_report"].anomalous_observations,
         processing_time_ms=round(elapsed_ms, 2),
         message="Route reconstruction successful.",
+        **metrics,
     )
 
 # --- Evaluator endpoint (protected) -------------------------------------------------
@@ -195,22 +247,15 @@ def evaluation(
     viterbi_preds = viterbi_data["predicted_arcs"]
 
     # Geometry for predicted arcs (simple start/end coordinates)
-    geometry: Dict[int, Dict[str, Dict[str, float]]] = {}
-    for arc_id in set(filter(None, greedy_preds + viterbi_preds)):
-        src_node, dst_node = arcs[arc_id]
-        geometry[arc_id] = {
-            "start": {"lon": nodes[src_node][0], "lat": nodes[src_node][1]},
-            "end": {"lon": nodes[dst_node][0], "lat": nodes[dst_node][1]},
-        }
+    geometry = route_geometry(greedy_preds + viterbi_preds, nodes, arcs)
 
     # Build candidate score list per observation for UI
     candidate_scores = []
-    for obs_idx, (idx, cand_list) in enumerate(candidates_by_obs):
+    groups = [candidates for _, candidates in candidates_by_obs]
+    for cand_list, probs in zip(groups, predictor.score_candidate_groups(groups)):
         scores = []
-        if cand_list:
-            probs = score_candidates(predictor.model, cand_list)
-            for c, p in zip(cand_list, probs):
-                scores.append({"arc_id": c.arc_id, "distance_m": c.distance_m, "score": p})
+        for candidate, probability in zip(cand_list, probs):
+            scores.append({"arc_id": candidate.arc_id, "distance_m": candidate.distance_m, "score": probability})
         candidate_scores.append(scores)
 
     return {
@@ -226,12 +271,12 @@ def evaluation(
     }
 
 # --- Admin endpoint (protected) ----------------------------------------------------
-@app.post("/admin/reload-model", tags=["Admin"], summary="Reload the GNB model (protected).")
+@app.post("/admin/reload-model", tags=["Admin"], summary="Reload the Random Forest model (protected).")
 def reload_model(token: str = Query(..., description="Admin token")):
     if token != ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid admin token")
     try:
-        predictor.model = load_model(predictor.model_path)
+        predictor.model = joblib.load(MODEL_PATH)
         return {"status": "model reloaded"}
     except Exception as e:
         raise HTTPException(

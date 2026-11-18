@@ -107,7 +107,9 @@ def viterbi_decode(
 class PathSnapPredictor:
     """End‑to‑end inference engine for PathSnap trips."""
 
-    def __init__(self, model: Any = None, model_path: Optional[Path | str] = None):
+    def __init__(self, model: Any = None, model_path: Optional[Path | str] = None, *, scorer=score_candidates, batch_scoring: bool = False):
+        self.scorer = scorer
+        self.batch_scoring = batch_scoring
         if model is not None:
             self.model = model
         elif model_path is not None:
@@ -119,6 +121,16 @@ class PathSnapPredictor:
             else:
                 self.model = None
         self.model_path = model_path or Path("artifacts/gnb_model.json")
+
+    def score_candidate_groups(self, groups):
+        model = self.model
+        if model is None:
+            return [[1.0 / (candidate.distance_m + 1e-3) for candidate in group] for group in groups]
+        if not self.batch_scoring:
+            return [self.scorer(model, group) if group else [] for group in groups]
+
+        scores = iter(self.scorer(model, [candidate for group in groups for candidate in group]))
+        return [[next(scores) for _ in group] for group in groups]
 
     def predict_trip(
         self,
@@ -164,18 +176,16 @@ class PathSnapPredictor:
         fixes_with_scores: List[List[Tuple[int, float]]] = []
         greedy_preds: List[Optional[int]] = []
         empty_cnt = 0
-        for obs_idx in range(n_obs):
-            cand_list = candidates_by_obs[obs_idx][1] if obs_idx < len(candidates_by_obs) else []
+        groups = [
+            candidates_by_obs[obs_idx][1] if obs_idx < len(candidates_by_obs) else []
+            for obs_idx in range(n_obs)
+        ]
+        for cand_list, probs in zip(groups, self.score_candidate_groups(groups)):
             if not cand_list:
                 empty_cnt += 1
                 fixes_with_scores.append([])
                 greedy_preds.append(None)
                 continue
-            probs = (
-                score_candidates(self.model, cand_list)
-                if self.model is not None
-                else [1.0 / (c.distance_m + 1e-3) for c in cand_list]
-            )
             pairs = [(c.arc_id, float(p)) for c, p in zip(cand_list, probs)]
             fixes_with_scores.append(pairs)
             # Greedy top‑1 selection
