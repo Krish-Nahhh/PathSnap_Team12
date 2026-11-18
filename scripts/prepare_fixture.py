@@ -1,8 +1,10 @@
 import shutil
 from pathlib import Path
 
+# Absolute path to the training dataset (outside the repo)
+train_src = Path(r"D:\ML_Hackathon\Student folder\train")
+# Fixtures directory inside the repository
 repo_root = Path(__file__).resolve().parents[1]
-train_src = repo_root / "Student folder" / "train"
 fixture_dir = repo_root / "tests" / "fixtures"
 fixture_dir.mkdir(parents=True, exist_ok=True)
 

@@ -17,18 +17,24 @@ def test_model_io_roundtrip(tmp_path: Path):
         # true candidate
         true_cand = Candidate(
             observation_index=obs_idx,
+            timestamp=0.0,
             arc_id=obs_idx,
+            candidate_rank=1,
             distance_m=5.0,
+            gps_heading_deg=0.0,
+            arc_heading_deg=None,
             heading_error_deg=0.0,
-            heading_available=True,
         )
         # false candidate
         false_cand = Candidate(
             observation_index=obs_idx,
+            timestamp=0.0,
             arc_id=obs_idx + 100,
+            candidate_rank=2,
             distance_m=20.0,
+            gps_heading_deg=None,
+            arc_heading_deg=None,
             heading_error_deg=30.0,
-            heading_available=False,
         )
         candidates.extend([true_cand, false_cand])
     rows = [("trip1", c) for c in candidates]
