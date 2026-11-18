@@ -1,7 +1,18 @@
 # Viterbi decoder handoff
 
-For each trip, call `src.pathsnap.decoder.decode_route(observations, arcs)`
-after candidate generation and classification.
+After classification, use the GPS timestamps to restart Viterbi at gaps:
+
+```python
+from src.pathsnap.decoder import decode_route
+from src.pathsnap.label_alignment import detect_gps_gaps
+
+segment_starts = [gap.end_index for gap in detect_gps_gaps(track)]
+predictions = decode_route(observations, arcs, segment_starts=segment_starts)
+```
+
+`track` contains (longitude, latitude, timestamp in seconds) rows. The
+shared detector flags gaps over five seconds and non-increasing
+timestamps. Viterbi restarts before the later fix, preserving both fixes.
 
 - Pass one list of `(arc_id, positive_class_probability)` pairs per GPS
   fix in source order. Keep empty lists for fixes without candidates.
@@ -37,9 +48,9 @@ its source directory lacks the .arcs file.
 
 | Metric | Classifier only | Viterbi |
 | --- | ---: | ---: |
-| Per-fix accuracy | 73.76% | 77.45% |
-| Mean trip sequence similarity | 0.591 | 0.708 |
-| Direct continuity | 87.04% | 99.18% |
+| Per-fix accuracy | 73.76% | 77.37% |
+| Mean trip sequence similarity | 0.591 | 0.707 |
+| Direct continuity | 87.04% | 99.10% |
 
 Accuracy pools 16,657 fixes across nine trips and uses the existing
 reference-route alignment. Sequence similarity averages each trip's
@@ -48,3 +59,11 @@ prediction and reference. Direct continuity pools adjacent scored fixes
 whose arcs are the same or touch in the forward direction. This metric
 counts transitions that skip connector arcs as indirect. The CSV reports
 per-trip metrics and decode time.
+
+The timestamp rule flagged 44 breaks across the nine trips. Compared with
+Viterbi without timestamp breaks, per-fix accuracy changed from 77.45%
+to 77.37% and direct continuity from 99.18% to 99.10%. Continuity counts
+all adjacent pairs with predictions, including across timestamp breaks.
+Trip 00000091 had no timestamp breaks and still reached only 25.86%
+per-fix accuracy with Viterbi. The continuity gain does not establish
+that the selected arcs match the reference.
