@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 from src.pathsnap.inference import PathSnapPredictor, predict_trip as predict_trip_fn
 from src.pathsnap.label_alignment import align_trip_labels, load_trip_data
+from src.pathsnap.candidates import generate_candidates
+from src.pathsnap.gaussian_naive_bayes import score_candidates, load_model
 
 # Environment and dataset directory paths
 BASE_DATA_DIR = Path(os.getenv("PATHSNAP_DATA_DIR", r"D:\\ML_Hackathon\\Student folder"))
