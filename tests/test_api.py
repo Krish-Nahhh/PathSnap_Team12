@@ -45,9 +45,8 @@ def test_predict_endpoint_valid_trip():
     assert "true_route" not in response_dict
     assert "aligned_labels" not in response_dict
 
-    # Accuracy was evaluated server-side since student_test/00000000 has reference route
-    assert res.accuracy is not None
-    assert 0.0 <= res.accuracy <= 1.0
+    # The public /predict endpoint no longer includes an accuracy field.
+    assert not hasattr(res, "accuracy")
 
 
 def test_predict_endpoint_missing_trip():
