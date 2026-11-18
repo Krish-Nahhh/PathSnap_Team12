@@ -452,6 +452,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Use GridSearchCV (all combinations) instead of RandomizedSearchCV.",
     )
     parser.add_argument(
+        "--bayes",
+        action="store_true",
+        help="Use Bayesian Optimization (Optuna TPE) instead of RandomizedSearch/GridSearch.",
+    )
+    parser.add_argument(
         "--export",
         action="store_true",
         help="Save best params to tuning_results/<model>.json after each search.",
@@ -488,15 +493,26 @@ def main(argv: list[str] | None = None) -> None:
         logger.info("Tuning model: %s", model_name)
         logger.info("━" * 60)
         try:
-            results = tune_model(
-                model_name,
-                all_rows,
-                all_labels,
-                n_iter       = args.n_iter,
-                n_splits     = args.folds,
-                exhaustive   = args.exhaustive,
-                random_state = args.random_state,
-            )
+            if args.bayes:
+                from .tune_rf_bayes import run_bayesian_optimization
+                best_params, best_score, _ = run_bayesian_optimization(
+                    all_rows,
+                    all_labels,
+                    n_trials=args.n_iter,
+                    n_splits=args.folds,
+                    random_state=args.random_state,
+                )
+                results = {"best_params": best_params, "best_score": best_score, "cv_results": {}}
+            else:
+                results = tune_model(
+                    model_name,
+                    all_rows,
+                    all_labels,
+                    n_iter       = args.n_iter,
+                    n_splits     = args.folds,
+                    exhaustive   = args.exhaustive,
+                    random_state = args.random_state,
+                )
             all_results[model_name] = results
 
             if args.export:
