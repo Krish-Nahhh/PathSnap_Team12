@@ -11,7 +11,7 @@ import joblib
 
 from src.pathsnap.candidates import generate_candidates
 from src.pathsnap.decoder import decode_route
-from src.pathsnap.label_alignment import align_trip_labels, load_trip_data
+from src.pathsnap.label_alignment import align_trip_labels, detect_gps_gaps, load_trip_data
 from src.pathsnap.logistic_regression import score_candidates
 
 
@@ -25,9 +25,10 @@ def predict_trip(model, track, nodes, arcs):
     ]
     top1 = [max(rows, key=lambda pair: pair[1])[0] if rows else None
             for rows in observations]
+    gaps = detect_gps_gaps(track)
     start = perf_counter()
-    decoded = decode_route(observations, arcs)
-    return top1, decoded, perf_counter() - start
+    decoded = decode_route(observations, arcs, segment_starts=(gap.end_index for gap in gaps))
+    return top1, decoded, perf_counter() - start, len(gaps)
 
 
 def measure(predictions, labels, reference, arcs):
@@ -63,7 +64,7 @@ def main():
             print(f"{trip.name}: skipped (missing {', '.join(missing)})")
             continue
         track, nodes, arcs, reference = load_trip_data(trip)
-        top1, decoded, seconds = predict_trip(model, track, nodes, arcs)
+        top1, decoded, seconds, gaps = predict_trip(model, track, nodes, arcs)
         labels = align_trip_labels(track, nodes, arcs, reference)
         if not labels:
             print(f"{trip.name}: skipped (empty alignment)")
@@ -73,6 +74,7 @@ def main():
                 "trip_id": trip.name,
                 "method": method,
                 "labeled_fixes": len(labels),
+                "timestamp_breaks": gaps,
                 "unmatched_fixes": predictions.count(None),
                 **measure(predictions, labels, reference, arcs),
                 "decode_seconds": seconds if method == "viterbi" else 0.0,

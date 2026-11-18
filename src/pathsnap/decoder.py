@@ -6,12 +6,13 @@ from math import isfinite, log
 
 
 def decode_route(observations, arcs, *, max_connector_hops=3,
-                 connector_penalty=1.0, disconnected_penalty=8.0):
+                 connector_penalty=1.0, disconnected_penalty=8.0, segment_starts=()):
     """Return an arc ID or None per observation.
 
     Each observation is an iterable of (arc_id, positive-class probability).
     Arc endpoints use the input graph's original node IDs. Empty observations
-    break the sequence. The resulting IDs are per-fix predictions.
+    break the sequence. Also restart before each zero-based fix index in
+    segment_starts, preserving the prediction for that fix.
     """
     if (max_connector_hops < 0 or not isfinite(connector_penalty)
             or not isfinite(disconnected_penalty) or connector_penalty < 0
@@ -55,7 +56,11 @@ def decode_route(observations, arcs, *, max_connector_hops=3,
             route.extend(reversed(run))
             history.clear()
 
-    for candidates in observations:
+    segment_starts = set(segment_starts)
+    for fix_index, candidates in enumerate(observations):
+        if fix_index in segment_starts:
+            finish_run()
+            scores = {}
         next_scores, parents = {}, {}
         for arc, probability in candidates:
             if not 0 <= arc < len(arcs) or not 0 <= probability <= 1:
